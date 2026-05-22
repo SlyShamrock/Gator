@@ -1,11 +1,19 @@
 package main
+
 import (
 	"fmt"
 	"errors"
 	"github.com/SlyShamrock/Gator/internal/config"
+	"time"
+	"github.com/SlyShamrock/Gator/internal/database"
+	"github.com/google/uuid"
+	"context"
+	"os"
+	"database/sql"
 )
 
 type state struct {
+	db *database.Queries
 	cfg config.Config
 }
 
@@ -25,11 +33,74 @@ func handlerLogin(s *state, cmd command) error {
 	
 	username := cmd.args[0]
 	
-	err := s.cfg.SetUser(username)
+	_, err := s.db.GetUser(context.Background(), username)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("username not found: %s", err)
+		os.Exit(1)
+	}
+	
+	if err != nil {
+		return fmt.Errorf("failed to get user: %s", err)
+	}			
+
+	err = s.cfg.SetUser(username)
 	if err != nil {
 		return fmt.Errorf("failed to set user: %s", err)
 	}
-	fmt.Printf("user has been set to : %s\n", s.cfg.CurrentUserName)
+	fmt.Printf("user has been set to : %s\n", s.cfg.CurrentUserName)	
+	return nil
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		return errors.New("name is required\n")
+	}
+	
+	user := cmd.args[0]
+	now := time.Now()
+	newID := uuid.New()
+
+	params := database.CreateUserParams{
+		ID: newID,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Name: user,
+	}
+
+	u, err := s.db.CreateUser(context.Background(), params)
+	if err != nil {
+		return fmt.Errorf("failed to create user: %s", err)
+	}
+
+	err = s.cfg.SetUser(u.Name)
+	if err != nil {
+		return fmt.Errorf("failed to set user: %s", err)
+	}
+	fmt.Printf("new user created: %s\n", s.cfg.CurrentUserName)
+	return nil
+}
+
+func handlerReset(s *state, cmd command) error {
+	err := s.db.DeleteUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to delete users from table: %s", err)		
+	}
+	fmt.Println("successfully deleted all users")
+	return nil		
+}
+
+func handlerUsers(s *state, cmd command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		fmt.Errorf("failed to get all users: %s", err)		
+	}
+	for _, user := range users {
+		if user.Name == s.cfg.CurrentUserName {
+			fmt.Printf("* %s (current)\n", user.Name)
+		} else {		
+			fmt.Printf("* %s\n", user.Name)
+		}
+	}	
 	return nil
 }
 
@@ -44,3 +115,4 @@ func (c *commands) run(s *state, cmd command) error {
 func (c *commands) register(name string, f func(*state, command) error) {
 	c.handlers[name] = f
 }
+
