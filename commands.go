@@ -144,6 +144,19 @@ func handlerAddFeed(s *state, cmd command) error {
 	return nil
 }
 
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.DisplayFeeds(context.Background())
+	if err != nil {
+			return fmt.Errorf("failed to retrieve feeds: %s", err)
+		}
+	for _, feed := range feeds {		
+		fmt.Println(feed.FeedName)
+		fmt.Println(feed.FeedUrl)
+		fmt.Println(feed.UserName)
+	}
+	return nil
+}
+
 func (c *commands) run(s *state, cmd command) error {
 	value, ok := c.handlers[cmd.name]
 	if !ok {
