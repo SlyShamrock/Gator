@@ -104,6 +104,46 @@ func handlerUsers(s *state, cmd command) error {
 	return nil
 }
 
+func handlerAgg(s *state, cmd command) error {
+	url := "https://www.wagslane.dev/index.xml"
+	feed, err := fetchFeed(context.Background(), url)
+	if err != nil {
+		return fmt.Errorf("failed to fetch from provided url: %s", err)
+	}
+	fmt.Printf("%+v\n", feed)
+	return nil
+}
+
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		return errors.New("feed name and url require\n")
+	}
+	username := s.cfg.CurrentUserName
+	userData, err := s.db.GetUser(context.Background(), username)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("username not found: %s", err)		
+	}	
+	
+	now := time.Now()
+	feedName := cmd.args[0]
+	feedUrl := cmd.args[1]
+	newId := uuid.New()
+	
+	feed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
+		ID: newId,
+		CreatedAt: now,
+		UpdatedAt: now,
+		Name: feedName,
+		Url: feedUrl,
+		UserID: userData.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create feed: %s", err)
+	}
+	fmt.Printf("%+v\n", feed)
+	return nil
+}
+
 func (c *commands) run(s *state, cmd command) error {
 	value, ok := c.handlers[cmd.name]
 	if !ok {
